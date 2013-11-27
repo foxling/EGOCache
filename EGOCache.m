@@ -141,6 +141,30 @@ static inline NSString* cachePathForKey(NSString* directory, NSString* key) {
 	});
 }
 
+- (void)clearCacheOfTimeoutLessThan:(NSTimeInterval)timeoutInterval {
+    dispatch_sync(_cacheInfoQueue, ^{
+        NSDate *date = [NSDate dateWithTimeIntervalSinceNow:timeoutInterval];
+        NSMutableArray *needsDelete = [NSMutableArray array];
+		for(NSString* key in _cacheInfo) {
+            NSDate* timeout = [self dateForKey:key];
+            if ([timeout compare:date] != NSOrderedDescending) {
+                [[NSFileManager defaultManager] removeItemAtPath:cachePathForKey(_directory, key) error:NULL];
+                [needsDelete addObject:key];
+            }
+		}
+		
+        for ( NSString *key in needsDelete ) {
+            [_cacheInfo removeObjectForKey:key];
+        }
+		
+		dispatch_sync(_frozenCacheInfoQueue, ^{
+			self.frozenCacheInfo = [_cacheInfo copy];
+		});
+        
+		[self setNeedsSave];
+	});
+}
+
 - (void)removeCacheForKey:(NSString*)key {
 	CHECK_FOR_EGOCACHE_PLIST();
 
